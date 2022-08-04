@@ -1,4 +1,4 @@
-% function [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
+function [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
 
 % Basic Preprocessing Pipeline - Pernet & Delorme (2021)
 % Ref: From BIDS-Formatted EEG Data to Sensor-Space Group Results: 
@@ -12,8 +12,8 @@
 % FORMAT = [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
 % INPUT bids_folder is thdataset location e.g. 'F:\WakemanHenson_Faces\eeg'
 % Example 
-bids_folder = 'F:\WakemanHenson_Faces\eeg';
-% [STUDY, ALLEEG, EEG] = limo_test_preprocess('bids_folder')
+%         bids_folder = 'F:\WakemanHenson_Faces\eeg';
+%         [STUDY, ALLEEG, EEG] = limo_test_preprocess('bids_folder')
 
 
 % start EEGLAB
@@ -30,9 +30,9 @@ CURRENTSET      = 1:length(EEG);
 root            = fullfile(bids_folder, 'derivatives');
 
 % reorient if using previous version of the data
-for s=1:size(EEG,2)
-    EEG(s) = pop_chanedit(EEG(s),'nosedir','+Y');
-end
+%for s=1:size(EEG,2)
+%    EEG(s) = pop_chanedit(EEG(s),'nosedir','+Y');
+%end
 
 % Remove bad channels
 EEG = pop_clean_rawdata( EEG,'FlatlineCriterion',5,'ChannelCriterion',0.8,...
