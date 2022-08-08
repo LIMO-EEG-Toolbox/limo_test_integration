@@ -16,7 +16,9 @@ function integration_results = limo_test_integration(studyfullname)
 %           integration_results.firstlevel.mixed_designWLS
 %               - updates STUDY and run a 1st level ananlysis with 3 face categories and times as continuous using WLS
 %
-%                 
+% Example: studyfullname = 'F:\WakemanHenson_Faces\eeg\derivatives\Face_detection.study';
+%          integration_results = limo_test_integration(studyfullname)
+%
 % Cyril Pernet 2022
 
 %% INPUT studyfullname full name (with path) of a study
@@ -34,10 +36,37 @@ cd(root); EEG = eeglab;
 [STUDY.datasetinfo(14:18).group] = deal('3');
 
 %% 1st level
-[integration_results,firstlevelfiles] = limo_test_firstlevel(STUDY,ALLEEG,EEG);
+[integration_results,firstlevelfiles] = limo_test_firstlevel('channels');
+[tmp_results,tmp_files]               = limo_test_firstlevel('ICs');
+
+% update the structures
+fn = fieldnames(tmp_results.firstlevel);
+for f=1:size(fn,1)
+    integration_results.firstlevel.(fn{f}).ICs = tmp_results.firstlevel.(fn{f}).ICs;
+end
+
+fn = fieldnames(tmp_files);
+for f=1:size(fn,1)
+    firstlevelfiles.(fn{f}).ICs = tmp_files.(fn{f}).ICs;
+end
+clear tmp_results tmp_files
 
 %% 2nd level
+
+%% make some virtual channels // best ICs selection file
+cd(root); mkdir('2nd_level_tests'); cd('2nd_level_tests');
+channel_vector = limo_best_electrodes(firstlevelfiles.Average_WLS.Channels.model.mat); % map R2
+save('virtual_electrode','channel_vector')
+
+for s=1:size(firstlevelfiles.mixed_designOLS.ICs.model.mat,1)
+    cond{s} = fullfile(fileparts(firstlevelfiles.mixed_designOLS.ICs.model.mat{1}),'Condition_effect_1.mat');
+end
+IC_vector = limo_best_electrodes(cond'); % map face effects on best component
+
+
 integration_results.secondlevel.one_samplettest = limo_test_one_samplettest
+
+
 integration_results.secondlevel.two_samplesttest = limo_test_two_samplesttest
 integration_results.secondlevel.pairedttest = limo_test_pairedttest
 integration_results.secondlevel.regression = limo_test_regression
