@@ -72,6 +72,8 @@ ALLEEG = EEG;
 
 % update study & compute single trials
 STUDY         = std_checkset(STUDY, ALLEEG);
-[STUDY, EEG]  = std_precomp(STUDY, EEG, {}, 'savetrials','on','interp','on','recompute','on',...
+[STUDY, EEG]  = std_precomp(STUDY, EEG, 'channels', 'savetrials','on','interp','on','recompute','on',...
+    'erp','on','erpparams', {'rmbase' [-200 0]}, 'spec','on', 'ersp','on','itc','on');
+[STUDY, EEG]  = std_precomp(STUDY, EEG, 'components', 'savetrials','on','interp','on','recompute','on',...
     'erp','on','erpparams', {'rmbase' [-200 0]}, 'spec','on', 'ersp','on','itc','on');
 studyfullname = fullfile(STUDY.filepath,STUDY.filename);
