@@ -1,4 +1,4 @@
-function [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
+function studyfullname = limo_test_preprocess(bids_folder)
 
 % Basic Preprocessing Pipeline - Pernet & Delorme (2021)
 % Ref: From BIDS-Formatted EEG Data to Sensor-Space Group Results: 
@@ -9,12 +9,13 @@ function [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
 % This function preprocesses Wakeman and Henson data to create ERPs, Spectrum, 
 % and ERSP than can then be used to test 1st level and 2nd level LIMO stats
 % 
-% FORMAT = [STUDY, ALLEEG, EEG] = limo_test_preprocess(bids_folder)
-% INPUT bids_folder is thdataset location e.g. 'F:\WakemanHenson_Faces\eeg'
+% FORMAT studyfullname = limo_test_preprocess(bids_folder)
+%
+% INPUT bids_folder is the dataset location e.g. 'F:\WakemanHenson_Faces\eeg'
+% OUTPUT is the study full name i.e. fullfile(STUDY.filepath,STUDY.filename)
 % Example 
 %         bids_folder = 'F:\WakemanHenson_Faces\eeg';
 %         [STUDY, ALLEEG, EEG] = limo_test_preprocess('bids_folder')
-
 
 % start EEGLAB
 [ALLEEG, EEG, CURRENTSET, ALLCOM] = eeglab;
@@ -30,13 +31,13 @@ CURRENTSET      = 1:length(EEG);
 root            = fullfile(bids_folder, 'derivatives');
 
 % reorient if using previous version of the data
-%for s=1:size(EEG,2)
+% for s=1:size(EEG,2)
 %    EEG(s) = pop_chanedit(EEG(s),'nosedir','+Y');
-%end
+% end
 
 % Remove bad channels
 EEG = pop_clean_rawdata( EEG,'FlatlineCriterion',5,'ChannelCriterion',0.8,...
-    'LineNoiseCriterion',2.5,'Highpass',[0.25 0.75] ,...
+    'LineNoiseCriterion',4,'Highpass',[0.25 0.75] ,...
     'BurstCriterion','off','WindowCriterion','off','BurstRejection','off',...
     'Distance','Euclidian','WindowCriterionTolerances','off' );
 
@@ -52,21 +53,25 @@ for s=1:size(EEG,2)
 end
 
 % clear data using ASR - just the bad epochs
-EEG = pop_clean_rawdata( EEG,'FlatlineCriterion','off','ChannelCriterion','off',...
-    'LineNoiseCriterion','off','Highpass','off','BurstCriterion',20,...
-    'WindowCriterion',0.25,'BurstRejection','on','Distance','Euclidian',...
-    'WindowCriterionTolerances',[-Inf 7] );
+EEG  = pop_clean_rawdata(EEG,'FlatlineCriterion','off','ChannelCriterion','off',...
+     'LineNoiseCriterion','off','Highpass','off','BurstCriterion',20,...
+     'WindowCriterion',0.25,'BurstRejection','on','Distance','Euclidian',...
+     'WindowCriterionTolerances',[-Inf 7] );
 
 % Extract data epochs (no baseline removed)
-EEG    = pop_epoch( EEG,{'famous_new','famous_second_early','famous_second_late', ...
+EEG    = pop_epoch(EEG,{'famous_new','famous_second_early','famous_second_late', ...
          'scrambled_new','scrambled_second_early','scrambled_second_late','unfamiliar_new', ...
-         'unfamiliar_second_early','unfamiliar_second_late'},[-0.5 1] ,'epochinfo','yes');
+         'unfamiliar_second_early','unfamiliar_second_late'},[-0.1 1] ,'epochinfo','yes');
+epoch_test = arrayfun(@(x) size(x.data),EEG,'UniformOutput',false);
+if ~all(cellfun(@(x) all(size(x)==size(epoch_test{1})), epoch_test))
+    error('yikes, at least one dataset is not epoched properly!')
+end
 EEG    = eeg_checkset(EEG);
 EEG    = pop_saveset(EEG, 'savemode', 'resave');
 ALLEEG = EEG;
 
 % update study & compute single trials
-STUDY        = std_checkset(STUDY, ALLEEG);
-[STUDY, EEG] = std_precomp(STUDY, EEG, {}, 'savetrials','on','interp','on','recompute','on',...
-    'erp','on','erpparams', {'rmbase' [-200 0]}, 'spec','off', 'ersp','off','itc','off');
-eeglab redraw
+STUDY         = std_checkset(STUDY, ALLEEG);
+[STUDY, EEG]  = std_precomp(STUDY, EEG, {}, 'savetrials','on','interp','on','recompute','on',...
+    'erp','on','erpparams', {'rmbase' [-200 0]}, 'spec','on', 'ersp','on','itc','on');
+studyfullname = fullfile(STUDY.filepath,STUDY.filename);
