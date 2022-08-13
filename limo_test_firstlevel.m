@@ -36,13 +36,12 @@ global STUDY ALLEEG EEG
 
 %% run cases one by one
 
-% categorical design & estimate with WLS on ERP
-% ----------------------------------------------
+% no design = mean estimate with WLS on spectrum
+% --------------------------------------------------------------
 
 try
-    STUDY = std_makedesign(STUDY, ALLEEG, 1, 'name','FaceRepetition','delfiles','off','defaultdesign','off',...
-        'variable1','type','values1',{'famous_new','famous_second_early','famous_second_late','scrambled_new','scrambled_second_early','scrambled_second_late','unfamiliar_new','unfamiliar_second_early','unfamiliar_second_late'},...
-        'vartype1','categorical','subjselect',{'sub-002','sub-003','sub-004','sub-005','sub-006','sub-007','sub-008','sub-009','sub-010','sub-011','sub-012','sub-013','sub-014','sub-015','sub-016','sub-017','sub-018','sub-019'});
+    STUDY = std_makedesign(STUDY, ALLEEG, 3, 'name','Average','delfiles','off','defaultdesign','off',...
+        'subjselect',{'sub-002','sub-003','sub-004','sub-005','sub-006','sub-007','sub-008','sub-009','sub-010','sub-011','sub-012','sub-013','sub-014','sub-015','sub-016','sub-017','sub-018','sub-019'});
     [STUDY, EEG] = pop_savestudy( STUDY, EEG, 'savemode','resave');
     
     % cleanup previous version
@@ -52,6 +51,37 @@ try
         rmdir([limo_STUDY.filepathfiles filesep 'limo_batch_report'],'s')
     end
     
+    for sub = 1:length(STUDY.subject)
+        if strcmpi(Type,'Channels') && exist(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Channels_Frequency_WLS']),'dir')
+            rmdir(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Channels_Frequency_WLS']),'s')
+        elseif strcmpi(Type,'ICs') && exist(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Components_Frequency_WLS']),'dir')
+            rmdir(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Components_Frequency_WLS']),'s')
+        end
+    end
+    
+    % compute 1st model with WLS
+    if strcmpi(Type,'Channels')
+        [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','datspec','freqlim',[5 30],'erase','on','splitreg','on','interaction','off');
+    else
+        [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','icaspec','freqlim',[5 30],'erase','on','splitreg','on','interaction','off');
+    end
+    integration_results.firstlevel.model.Average_WLS.(Type) = 'Average spectrum with WLS estimates successful';
+    firstlevelfiles.model.Average_WLS.(Type) = files;
+catch err
+    fprintf('%s\n',err.message)
+    integration_results.firstlevel.model.Average_WLS.(Type) = sprintf('Average spectrum with WLS estimates failed \n%s',err.message);
+end
+
+% categorical design & estimate with WLS on ERP
+% ----------------------------------------------
+
+try
+    STUDY = std_makedesign(STUDY, ALLEEG, 1, 'name','FaceRepetition','delfiles','off','defaultdesign','off',...
+        'variable1','type','values1',{'famous_new','famous_second_early','famous_second_late','scrambled_new','scrambled_second_early','scrambled_second_late','unfamiliar_new','unfamiliar_second_early','unfamiliar_second_late'},...
+        'vartype1','categorical','subjselect',{'sub-002','sub-003','sub-004','sub-005','sub-006','sub-007','sub-008','sub-009','sub-010','sub-011','sub-012','sub-013','sub-014','sub-015','sub-016','sub-017','sub-018','sub-019'});
+    [STUDY, EEG] = pop_savestudy( STUDY, EEG, 'savemode','resave');
+    
+    % cleanup previous version    
     for sub = 1:length(STUDY.subject)
         if strcmpi(Type,'Channels') && exist(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_FaceRepetition_GLM_Channels_Time_WLS']),'dir')
             rmdir(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_FaceRepetition_GLM_Channels_Time_WLS']),'s')
@@ -63,28 +93,28 @@ try
     % compute 1st model with OLS
     if strcmpi(Type,'Channels')
         [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','daterp','timelim',[-50 650],'erase','on','splitreg','off','interaction','off');
-        firstlevelfiles.categorical_designWLS.Channels.model = files;
     else
         [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','icaerp','timelim',[-50 650],'erase','on','splitreg','off','interaction','off');
-        firstlevelfiles.categorical_designWLS.ICs.model = files;
     end
-    integration_results.firstlevel.categorical_designWLS.(Type) = 'categorical design with WLS estimates successful';
+    integration_results.firstlevel.model.categorical_designWLS.(Type) = 'categorical design ERP with WLS estimates successful';
+    firstlevelfiles.model.categorical_designWLS.(Type) = files;
+catch err
+    fprintf('%s\n',err.message)
+    integration_results.firstlevel.model.categorical_designWLS.(Type) = sprintf('categorical des1ign ERP with WLS estimates failed \n%s',err.message);
+end
     
+try
     contrast.LIMO_files      = files.mat;
     contrast.mat             = [1 1 1 -1 -1 -1 0 0 0 0 ; 0 0 0 1 1 1 -1 -1 -1 0];
     confiles                 = limo_batch('contrast only',[],contrast,STUDY); % batch here doesn't care channels or ICs since the model already exists
-    if strcmpi(Type,'channels')
-        firstlevelfiles.categorical_designWLS.Channels.con = confiles.con;
-    else
-        firstlevelfiles.categorical_designWLS.ICs.con = confiles.con;
-    end
+    firstlevelfiles.contrasts.categorical_designWLS.(Type) = confiles.con;
     clear confiles
-    integration_results.firstlevel.categorical_designWLS.(Type) = 'categorical design and contrasts with WLS estimates successful';
-
+    integration_results.firstlevel.contrasts.categorical_designWLS.(Type) = 'categorical design contrasts with WLS estimates successful';
 catch err
     fprintf('%s\n',err.message)
-    integration_results.firstlevel.categorical_designWLS.(Type) = sprintf('categorical design + contrasts with WLS estimates failed \n%s',err.message);
+    integration_results.firstlevel.contrasts.categorical_designWLS.(Type) = sprintf('categorical design contrasts with WLS estimates failed \n%s',err.message);
 end
+
 
 % mixed design categorical+continuous, estimate with WLS on ERSP
 % --------------------------------------------------------------
@@ -110,13 +140,12 @@ try
     if strcmpi(Type,'Channels')
         [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','OLS','measure','dattimef','timelim',[-50 650],'freqlim',[5 30],'erase','on','splitreg','off','interaction','off');
         design = ['ses-1' filesep 'Face_detection_Face_time_GLM_Channels_Time-Frequency_OLS'];
-        firstlevelfiles.mixed_designOLS.Channels.model = files;
     else
         [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','OLS','measure','icatimef','timelim',[-50 650],'freqlim',[5 30],'erase','on','splitreg','off','interaction','off');
         design = ['ses-1' filesep 'Face_detection_Face_time_GLM_Components_Time-Frequency_OLS'];
-        firstlevelfiles.mixed_designOLS.ICs.model = files;
     end
-    integration_results.firstlevel.mixed_designOLS.(Type) = 'mixed design with OLS estimates successful';
+    integration_results.firstlevel.model.mixed_designOLS.(Type) = 'mixed design ERSP with OLS estimates successful';
+    firstlevelfiles.model.mixed_designOLS.(Type) = files;
     
     % -----------------------------------------
     % just to be sure WLS works, redo last subject
@@ -126,52 +155,22 @@ try
     LIMO.design.status = 'to do';
     save(fullfile(LIMO.dir,'LIMO.mat'),'LIMO','-v7.3')
     limo_eeg(4,LIMO.dir); clear LIMO;
-    integration_results.firstlevel.mixed_designOLS.(Type) = 'mixed design with OLS estimates successful (WLS works to, test on last subject)';
-    % ------------------------------------------   
-    
+    integration_results.firstlevel.model.mixed_designOLS.(Type) = 'mixed design ERSP with OLS estimates successful (WLS works to, test on last subject)';
+catch err
+    fprintf('%s\n',err.message)
+    integration_results.firstlevel.mixed_designOLS.(Type) = sprintf('mixed design ERSP with OLS estimates failed \n%s',err.message);
+end
+
+try
     contrast.LIMO_files      = files.mat;
     contrast.mat             = [0 0 0 -1 1 0]; % are covariates different
     confiles                 = limo_batch('contrast only',[],contrast); % do not pass STUDY argument, should still figure it out
-    if strcmpi(Type,'channels')
-        firstlevelfiles.mixed_designOLS.Channels.con = confiles.con;
-    else
-        firstlevelfiles.mixed_designOLS.ICs.con = confiles.con;
-    end
+    firstlevelfiles.contrasts.mixed_designOLS.(Type) = confiles.con;
     clear confiles
-    integration_results.firstlevel.mixed_designOLS.(Type) = 'mixed design with OLS estimates and contrast successful (WLS works to, test on last subject)';
-
+    integration_results.firstlevel.contrasts.mixed_designOLS.(Type) = 'mixed design ERSP contrasts with OLS estimates successful (WLS works to, test on last subject)';
 catch err
     fprintf('%s\n',err.message)
-    integration_results.firstlevel.mixed_designOLS.(Type) = sprintf('mixed design with OLS estimates + contrast failed \n%s',err.message);
+    integration_results.firstlevel.contrasts.mixed_designOLS.(Type) = sprintf('mixed design ERSP contrasts with OLS estimates failed \n%s',err.message);
 end
 
-% no design = mean estimate with WLS on spectrum
-% --------------------------------------------------------------
 
-try
-    STUDY = std_makedesign(STUDY, ALLEEG, 3, 'name','Average','delfiles','off','defaultdesign','off',...
-        'subjselect',{'sub-002','sub-003','sub-004','sub-005','sub-006','sub-007','sub-008','sub-009','sub-010','sub-011','sub-012','sub-013','sub-014','sub-015','sub-016','sub-017','sub-018','sub-019'});
-    [STUDY, EEG] = pop_savestudy( STUDY, EEG, 'savemode','resave');
-    
-    % cleanup previous version
-    for sub = 1:length(STUDY.subject)
-        if strcmpi(Type,'Channels') && exist(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Channels_Frequency_WLS']),'dir')
-            rmdir(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Channels_Frequency_WLS']),'s')
-        elseif strcmpi(Type,'ICs') && exist(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Components_Frequency_WLS']),'dir')
-            rmdir(fullfile(STUDY.filepath,[STUDY.subject{sub} filesep 'eeg' filesep 'ses-1' filesep 'Face_detection_Average_GLM_Components_Frequency_WLS']),'s')
-        end
-    end
-    
-    % compute 1st model with WLS
-    if strcmpi(Type,'Channels')
-        [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','datspec','freqlim',[5 30],'erase','on','splitreg','on','interaction','off');
-        firstlevelfiles.Average_WLS.Channels.model = files;
-    else
-        [STUDY, ~, files] = pop_limo(STUDY, ALLEEG, 'method','WLS','measure','icaspec','freqlim',[5 30],'erase','on','splitreg','on','interaction','off');
-        firstlevelfiles.Average_WLS.ICs.model = files;
-    end
-    integration_results.firstlevel.Average_WLS.(Type) = 'Average with WLS estimates successful';
-catch err
-    fprintf('%s\n',err.message)
-    integration_results.firstlevel.Average_WLS.(Type) = sprintf('Average_WLS with WLS estimates + contrast failed \n%s',err.message);
-end
