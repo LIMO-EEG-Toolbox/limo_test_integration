@@ -28,6 +28,21 @@ end
 [root,std_name,ext] = fileparts(studyfullname);
 cd(root); EEG = eeglab;
 
+% cleanup everything in derivatives
+sub = dir('sub-*');
+for s =1:size(sub,1)
+    rmdir(fullfile([sub(s).folder filesep sub(s).name],['eeg' filesep 'ses-1']),'s')
+end
+
+if exist('2nd_level_tests','dir')
+    rmdir('2nd_level_tests','s')
+end
+
+if exist('LIMO_Face_detection','dir')
+    rmdir('LIMO_Face_detection','s')
+end
+
+
 %% load STUDY
 [STUDY, ALLEEG] = pop_loadstudy('filename', [std_name ext], 'filepath', root);
 % update to have 3 groups
@@ -40,14 +55,24 @@ cd(root); EEG = eeglab;
 [tmp_results,tmp_files]               = limo_test_firstlevel('ICs');
 
 % update the structures
-fn = fieldnames(tmp_results.firstlevel);
+fn = fieldnames(tmp_results.firstlevel.model);
 for f=1:size(fn,1)
-    integration_results.firstlevel.(fn{f}).ICs = tmp_results.firstlevel.(fn{f}).ICs;
+    integration_results.firstlevel.model.(fn{f}).ICs = tmp_results.firstlevel.model.(fn{f}).ICs;
 end
 
-fn = fieldnames(tmp_files);
+fn = fieldnames(tmp_results.firstlevel.contrasts);
 for f=1:size(fn,1)
-    firstlevelfiles.(fn{f}).ICs = tmp_files.(fn{f}).ICs;
+    integration_results.firstlevel.contrasts.(fn{f}).ICs = tmp_results.firstlevel.contrasts.(fn{f}).ICs;
+end
+
+fn = fieldnames(tmp_files.model);
+for f=1:size(fn,1)
+    firstlevelfiles.model.(fn{f}).ICs = tmp_files.model.(fn{f}).ICs;
+end
+
+fn = fieldnames(tmp_files.contrasts);
+for f=1:size(fn,1)
+    firstlevelfiles.contrasts.(fn{f}).ICs = tmp_files.contrasts.(fn{f}).ICs;
 end
 clear tmp_results tmp_files
 
@@ -55,16 +80,19 @@ clear tmp_results tmp_files
 
 %% make some virtual channels // best ICs selection file
 cd(root); mkdir('2nd_level_tests'); cd('2nd_level_tests');
-channel_vector = limo_best_electrodes(firstlevelfiles.Average_WLS.Channels.model.mat); % map R2
+channel_vector = limo_best_electrodes(firstlevelfiles.model.categorical_designWLS.channels.mat); % from LIMO files, maps R2
+% limo_best_electrodes(firstlevelfiles.model.categorical_designWLS.channels.mat,fullfile(root,'limo_gp_level_chanlocs.mat'))
 save('virtual_electrode','channel_vector')
 
-for s=1:size(firstlevelfiles.mixed_designOLS.ICs.model.mat,1)
-    cond{s} = fullfile(fileparts(firstlevelfiles.mixed_designOLS.ICs.model.mat{1}),'Condition_effect_1.mat');
+for s=size(firstlevelfiles.contrasts.categorical_designWLS.ICs,1):-1:1
+    cond{s} = fullfile(fileparts(firstlevelfiles.contrasts.categorical_designWLS.ICs{1}{1}),'Condition_effect_1.mat');
 end
 IC_vector = limo_best_electrodes(cond'); % map face effects on best component
+% limo_best_electrodes(cond',fullfile(root,'limo_gp_level_chanlocs.mat'))
+save('IC_vector','IC_vector')
 
-
-integration_results.secondlevel.one_samplettest = limo_test_one_samplettest
+%% start doing some tests! 
+integration_results.secondlevel.one_samplettest.channels_spectrum = limo_test_one_samplettest
 
 
 integration_results.secondlevel.two_samplesttest = limo_test_two_samplesttest
@@ -74,5 +102,13 @@ integration_results.secondlevel.ANCOVA = limo_test_ANCOVA
 integration_results.secondlevel.ANOVA = limo_test_ANOVA
 integration_results.secondlevel.repeated_measures_ANOVA = limo_test_repeated_measures_ANOVA
 
-
+%% finish off
+if all(contains(limotest,'successful'))
+    disp('deleting all created files - test successful')
+    try mdir('2nd_level_tests','s'); end
+    try rmdir(limo_rootfiles,'s'); end
+else
+    warning('test failure - files were not deleted from drive')
+end
+limotest'
 
